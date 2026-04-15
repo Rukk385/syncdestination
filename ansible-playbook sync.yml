@@ -1,0 +1,37 @@
+---
+- name: Sync GitLab branch to GitHub
+  hosts: localhost
+  connection: local
+  vars:
+    # Use environment variables passed from GitLab CI
+    dest_repo: "git@github.com:username/destination-repo.git"
+    sync_branch: "sync"
+    dest_branch: "main"
+
+  tasks:
+    - name: Ensure SSH directory exists
+      file:
+        path: ~/.ssh
+        state: directory
+        mode: '0700'
+
+    - name: Configure SSH to skip host key checking (Optional/Convenience)
+      copy:
+        content: "Host github.com\n\tStrictHostKeyChecking no\n"
+        dest: ~/.ssh/config
+        mode: '0600'
+
+    - name: Sync and Push to GitHub
+      shell: |
+        git config --global user.email "ci@gitlab.com"
+        git config --global user.name "GitLab CI"
+        
+        # Add the remote if it doesn't exist, otherwise update it
+        git remote add github {{ dest_repo }} || git remote set-url github {{ dest_repo }}
+        
+        # Fetch and push
+        git fetch origin {{ sync_branch }}
+        git checkout {{ sync_branch }}
+        git push github {{ sync_branch }}:{{ dest_branch }} --force
+      args:
+        chdir: "{{ ansible_env.CI_PROJECT_DIR }}"
